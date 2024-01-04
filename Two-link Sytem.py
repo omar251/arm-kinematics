@@ -4,22 +4,6 @@ import pygame
 import numpy as np
 from scipy.optimize import fsolve
 
-def inverse_kinematics_G(a1=1, a2=1,x=1,y=1):
-    R = math.sqrt(x**2 + y**2)
-    N = (a1**2 + a2**2 - R**2) / (2 * a1 * a2)
-
-    if -1 <= N <= 1:
-        theta2 = 180 - math.degrees(math.acos(N))
-        
-        k1 = a1 + a2 * math.cos(math.radians(theta2))
-        k2 = a2 * math.sin(math.radians(theta2))
-        
-        theta1 = math.atan2(y, x) - math.atan2(k2, k1)
-
-        return (theta1)%360,(theta2)%360
-    else:
-        print("No solution exists for given x, y coordinates.")
-
 def inverse_kinematics_N(L1,L2,x, y):
     def equations(variables):
         theta_1, theta_2 = variables
