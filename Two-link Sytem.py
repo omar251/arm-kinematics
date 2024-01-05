@@ -4,7 +4,12 @@ import pygame
 import numpy as np
 from scipy.optimize import fsolve
 
-def inverse_kinematics_N(L1,L2,x, y):
+def inverse_kinematics_N1(L1=100, theta=0, x=0, y=0):
+    offsetx = - (L1 * math.cos(theta))
+    offsety = - (L1 * math.sin(theta))
+    return math.degrees(math.atan2(y ,x ))
+
+def inverse_kinematics_N2(L1,L2,x, y):
     def equations(variables):
         theta_1, theta_2 = variables
         eq1 = x - L1 * np.cos(theta_1) - L2 * np.cos(theta_1 + theta_2)
@@ -19,7 +24,10 @@ def inverse_kinematics_N(L1,L2,x, y):
     theta_2 = theta_2 % (2 * np.pi)
     theta_1_deg = np.degrees(theta_1)
     theta_2_deg = np.degrees(theta_2)
-
+    if theta_1_deg > 180:
+        theta_1_deg = theta_1_deg - 360
+    if theta_2_deg > 180:
+        theta_2_deg = theta_2_deg - 360
     return theta_1_deg, theta_2_deg
 # Initialize Pygame
 pygame.init()
@@ -37,7 +45,7 @@ blue = (0, 0, 255)
 
 # Link lengths
 a1 = 100
-a2 = 100
+a2 = 50
 x1 = 0
 y1 = 0
 x2 = 0
@@ -67,18 +75,24 @@ while running:
         prev_mouse_pos = (mouse_x, mouse_y)
 
         # Calculate inverse kinematics for mouse position
-        theta1, theta2 = inverse_kinematics_N(a1, a2, mouse_x - width // 2, (mouse_y - height // 2))
+        theta1, theta2 = inverse_kinematics_N2(a1, a2, mouse_x - width // 2, (mouse_y - height // 2))
+        
+        if theta1 <= 0 :
+            # Calculate positions of points
+            x1 = a1 * math.cos(math.radians(theta1)) + width // 2
+            y1 = a1 * math.sin(math.radians(theta1)) + height // 2
+            x2 = x1 + a2 * math.cos(math.radians(theta1) + math.radians(theta2))
+            y2 = y1 + a2 * math.sin(math.radians(theta1) + math.radians(theta2))
+            
+        elif theta1 > 0:
+            theta1 =  theta1 * -1
+            theta2 = inverse_kinematics_N1(a1, theta1, mouse_x - width // 2, mouse_y - height // 2)
+            x1 = a1 * math.cos(math.radians(theta1)) + width // 2
+            y1 = a1 * math.sin(math.radians(theta1)) + height // 2
+            x2 = x1 + a2 * math.cos(math.radians(theta2)) 
+            y2 = y1 + a2 * math.sin(math.radians(theta2)) 
+        
 
-        # Convert angles to radians
-        theta1_rad = math.radians(theta1)
-        theta2_rad = math.radians(theta2)
-
-        # Calculate positions of points
-        x1 = a1 * math.cos(theta1_rad) + width // 2
-        y1 = a1 * math.sin(theta1_rad) + height // 2
-        x2 = x1 + a2 * math.cos(theta1_rad + theta2_rad)
-        y2 = y1 + a2 * math.sin(theta1_rad + theta2_rad)
-        print(mouse_x,mouse_y)
 
     screen.fill(white)
 
@@ -92,8 +106,8 @@ while running:
     # Display text on screen
     text_x = font.render(f"x: {mouse_x - width // 2}", True, black)
     text_y = font.render(f"y: {mouse_y - height // 2}", True, black)
-    text_theta1 = font.render(f"Theta1: {math.degrees(theta1)%360:.2f} degrees", True, black)
-    text_theta2 = font.render(f"Theta2: {math.degrees(theta2)%360:.2f} degrees", True, black)
+    text_theta1 = font.render(f"Theta1: {(theta1):.2f} degrees", True, black)
+    text_theta2 = font.render(f"Theta2: {(theta2):.2f} degrees", True, black)
 
     screen.blit(text_x, (10, 50))
     screen.blit(text_y, (10, 70))
