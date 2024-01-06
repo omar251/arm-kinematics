@@ -61,6 +61,11 @@ class arm:
             theta_2_deg = int(theta_2_deg - math.copysign(360 ,theta_2_deg))
         if abs(theta_1_deg) > 180:
             theta_3_deg = int(theta_3_deg - math.copysign(360 ,theta_3_deg))
+        if theta_1_deg > 0:
+            theta_1_deg = theta_1_deg - 180
+            theta_2_deg = -theta_2_deg
+            theta_3_deg = -theta_3_deg
+            
 
         return theta_1_deg, theta_2_deg, theta_3_deg
     def draw(self):
@@ -91,7 +96,12 @@ class arm:
             pygame.display.flip()
     def move(self):
         if pygame.mouse.get_pressed()[0]: 
-           self.destination = pygame.mouse.get_pos()
+           pointx,pointy = pygame.mouse.get_pos()
+        #    if pointx < self.width // 2 :
+        #        pointx = self.width // 2
+           if pointy > self.height // 2 :
+               pointy = self.height // 2
+           self.destination = pointx,pointy
            self.calculate_distance()
            if not self.points == None:
             while len(self.points) > 0:   
@@ -135,8 +145,6 @@ class arm:
         pygame.quit()
         sys.exit()
 
-
-# Usage
 if __name__ == "__main__":
     arm_instance = arm(100, 70, 50)
     arm_instance.run()
