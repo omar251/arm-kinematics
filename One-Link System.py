@@ -1,88 +1,63 @@
 import sys
 import math
 import pygame
-import numpy as np
 
-def inverse_kinematics_N1(L1, theta, x, y):
-    x2 = x + L1 * math.cos(math.radians(theta))
-    y2 = y + L1 * math.sin(math.radians(theta))
-    theta = math.atan2(y2,x2)
-    # if theta > 0:
-    #     theta = 0
-    return math.degrees(theta)
+class OneLinkSystem:
+    def __init__(self, length):
+        pygame.init()
+        self.width, self.height = 800, 600
+        self.screen = pygame.display.set_mode((self.width, self.height))
+        pygame.display.set_caption('One-Link System Animation')
+        self.black = (0, 0, 0)
+        self.white = (255, 255, 255)
+        self.blue = (0, 0, 255)
+        self.link_length = length
+        self.x1, self.y1 = 0, 0
+        self.theta1 = 0
+        self.font = pygame.font.SysFont(None, 24)
+        self.prev_mouse_pos = (0, 0)
 
-# Initialize Pygame
-pygame.init()
+    def calculate_inverse_kinematics(self, x, y):
+        x_diff = x - self.width // 2
+        y_diff = y - self.height // 2
+        self.theta1 = math.degrees(math.atan2(y_diff, x_diff))
 
-# Screen dimensions
-width, height = 800, 600
-screen = pygame.display.set_mode((width, height))
-pygame.display.set_caption('One-Link System Animation')
+    def run(self):
+        running = True
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
 
-# Colors
-black = (0, 0, 0)
-white = (255, 255, 255)
-red = (255, 0, 0)
-blue = (0, 0, 255)
+            mouse_x, mouse_y = pygame.mouse.get_pos()
 
-# Link lengths
-a1 = 100
-x1 = 0
-y1 = 0
-theta1 = 0
+            if (mouse_x, mouse_y) != self.prev_mouse_pos:
+                self.prev_mouse_pos = (mouse_x, mouse_y)
+                self.calculate_inverse_kinematics(mouse_x, mouse_y)
 
-# Font setup
-font = pygame.font.SysFont(None, 24)
+                theta1_rad = math.radians(self.theta1)
+                self.x1 = self.link_length * math.cos(theta1_rad) + self.width // 2
+                self.y1 = self.link_length * math.sin(theta1_rad) + self.height // 2
 
-# Main loop
-# Inside the main loop
-running = True
-prev_mouse_pos = (0, 0)  # Store the previous mouse position
+            self.screen.fill(self.white)
+            pygame.draw.line(self.screen, self.black, (self.width // 2, self.height // 2), (self.x1, self.y1), 5)
+            pygame.draw.circle(self.screen, self.blue, (self.width // 2, self.height // 2), 8)
+            pygame.draw.circle(self.screen, self.black, (int(self.x1), int(self.y1)), 8)
 
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+            text_x = self.font.render(f"x: {mouse_x - self.width // 2}", True, self.black)
+            text_y = self.font.render(f"y: {mouse_y - self.height // 2}", True, self.black)
+            text_theta1 = self.font.render(f"Theta1: {(self.theta1):.2f} degrees", True, self.black)
 
-    # Get current mouse position
-    mouse_x, mouse_y = pygame.mouse.get_pos()
+            self.screen.blit(text_x, (10, 50))
+            self.screen.blit(text_y, (10, 70))
+            self.screen.blit(text_theta1, (10, 10))
 
-    # Check if mouse position changed
-    if (mouse_x, mouse_y) != prev_mouse_pos:
-        # Update the previous mouse position
-        prev_mouse_pos = (mouse_x, mouse_y)
+            pygame.display.flip()
 
-        # Calculate inverse kinematics for mouse position
-        theta1 = inverse_kinematics_N1(a1,0, mouse_x - width // 2, (mouse_y - height // 2))
+        pygame.quit()
+        sys.exit()
 
-        # Convert angles to radians
-        theta1_rad = math.radians(theta1)
-
-        # Calculate positions of points
-        x1 = a1 * math.cos(theta1_rad) + width // 2
-        y1 = a1 * math.sin(theta1_rad) + height // 2
-
-
-    screen.fill(white)
-
-    # Draw links and joints
-    pygame.draw.line(screen, black, (width // 2, height // 2), (x1, y1), 5)
-    pygame.draw.circle(screen, blue, (width // 2, height // 2), 8)
-    pygame.draw.circle(screen, black, (int(x1), int(y1)), 8)
- 
-
-    # Display text on screen
-    text_x = font.render(f"x: {mouse_x - width // 2}", True, black)
-    text_y = font.render(f"y: {mouse_y - height // 2}", True, black)
-    text_theta1 = font.render(f"Theta1: {(theta1):.2f} degrees", True, black)
-
-
-    screen.blit(text_x, (10, 50))
-    screen.blit(text_y, (10, 70))
-    screen.blit(text_theta1, (10, 10))
-
-
-    pygame.display.flip()
-
-pygame.quit()
-sys.exit()
+# Usage
+if __name__ == "__main__":
+    one_link_system = OneLinkSystem(100)  # Set your desired link length here
+    one_link_system.run()
