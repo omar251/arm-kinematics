@@ -2,119 +2,167 @@ import sys
 import math
 import pygame
 import numpy as np
-from scipy.optimize import fsolve
+from ..base_arm import BaseArm
+from ..kinematics_solvers import inverse_kinematics_two_link_fsolve, inverse_kinematics_two_link_geometric
 
-def inverse_kinematics_N1(L1=100, theta=0, x=0, y=0):
-    offsetx = - (L1 * math.cos(theta))
-    offsety = - (L1 * math.sin(theta))
-    return math.degrees(math.atan2(y ,x ))
+class TwoLinkMouseFollowArm(BaseArm):
+    """
+    Simulates a two-link robotic arm whose end-effector follows the mouse cursor.
+    Inherits from BaseArm for common Pygame functionality.
+    """
+    def __init__(self, a1, a2, solver='fsolve'):
+        """
+        Initializes the TwoLinkMouseFollowArm.
 
-def inverse_kinematics_N2(L1,L2,x, y):
-    def equations(variables):
-        theta_1, theta_2 = variables
-        eq1 = x - L1 * np.cos(theta_1) - L2 * np.cos(theta_1 + theta_2)
-        eq2 = y - L1 * np.sin(theta_1) - L2 * np.sin(theta_1 + theta_2)
-        return [eq1, eq2]
+        Args:
+            a1 (float): Length of the first link.
+            a2 (float): Length of the second link.
+            solver (str): The inverse kinematics solver to use ('fsolve' or 'geometric').
+        """
+        super().__init__(caption='Two-Link Mouse Follow Simulation')
 
-    initial_guess = [0.0, 0.0]  # Initial guess for theta_1 and theta_2
-    theta_1, theta_2 = fsolve(equations, initial_guess)
+        # Link lengths
+        self.a1 = a1
+        self.a2 = a2
 
-    # Normalize angles to be within 0 to 2*pi (360 degrees)
-    theta_1 = theta_1 % (2 * np.pi)
-    theta_2 = theta_2 % (2 * np.pi)
-    theta_1_deg = np.degrees(theta_1)
-    theta_2_deg = np.degrees(theta_2)
-    if theta_1_deg > 180:
-        theta_1_deg = theta_1_deg - 360
-    if theta_2_deg > 180:
-        theta_2_deg = theta_2_deg - 360
-    return theta_1_deg, theta_2_deg
-# Initialize Pygame
-pygame.init()
+        # Arm state
+        self.theta1, self.theta2 = 0.0, 0.0 # in degrees
+        # Joint positions in Pygame window coordinates
+        # These will be updated based on current angles
+        self.xy1 = pygame.math.Vector2(self.origin_x, self.origin_y)
+        self.xy2 = pygame.math.Vector2(self.origin_x, self.origin_y) # End-effector position
 
-# Screen dimensions
-width, height = 800, 600
-screen = pygame.display.set_mode((width, height))
-pygame.display.set_caption('Two-Link System Animation')
+        # Variable to store target position from mouse (in window coordinates)
+        # Initialize target to the origin
+        self.target_x = self.origin_x
+        self.target_y = self.origin_y
+        self.prev_mouse_pos = (0, 0)
 
-# Colors
-black = (0, 0, 0)
-white = (255, 255, 255)
-red = (255, 0, 0)
-blue = (0, 0, 255)
+        # Select the IK solver
+        if solver == 'fsolve':
+            self.ik_solver = inverse_kinematics_two_link_fsolve
+        elif solver == 'geometric':
+            self.ik_solver = inverse_kinematics_two_link_geometric
+            # Note: Geometric solver returns two solutions.
+            # We'll just use the first one for this simple mouse-following example.
+            print("Using geometric solver. Note: This example uses only the first returned solution.")
+        else:
+            print(f"Warning: Unknown solver '{solver}'. Using 'fsolve'.")
+            self.ik_solver = inverse_kinematics_two_link_fsolve
 
-# Link lengths
-a1 = 100
-a2 = 50
-x1 = 0
-y1 = 0
-x2 = 0
-y2 = 0
-theta1 = 0
-theta2 = 0
+        # Initial forward kinematics calculation to set initial positions
+        self._update_joint_positions()
 
-# Font setup
-font = pygame.font.SysFont(None, 24)
+    def handle_input(self):
+        """
+        Handles user input, specifically tracking the mouse position to set the target.
+        """
+        # Get current mouse position
+        mouse_x, mouse_y = pygame.mouse.get_pos()
 
-# Main loop
-# Inside the main loop
-running = True
-prev_mouse_pos = (0, 0)  # Store the previous mouse position
+        # Check if mouse position changed
+        if (mouse_x, mouse_y) != self.prev_mouse_pos:
+            self.prev_mouse_pos = (mouse_x, mouse_y)
+            # Update the target position directly to mouse position
+            self.target_x = mouse_x
+            self.target_y = mouse_y
 
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+    def update_kinematics(self):
+        """
+        Updates the arm's joint angles and end-effector position based on the target.
+        """
+        # Convert target from window coordinates to coordinates relative to arm origin
+        target_x_rel = self.target_x - self.origin_x
+        target_y_rel = self.target_y - self.origin_y
 
-    # Get current mouse position
-    mouse_x, mouse_y = pygame.mouse.get_pos()
+        # Calculate inverse kinematics
+        # The solver expects relative x, y
+        angles = self.ik_solver(self.a1, self.a2, target_x_rel, target_y_rel)
 
-    # Check if mouse position changed
-    if (mouse_x, mouse_y) != prev_mouse_pos:
-        # Update the previous mouse position
-        prev_mouse_pos = (mouse_x, mouse_y)
-
-        # Calculate inverse kinematics for mouse position
-        theta1, theta2 = inverse_kinematics_N2(a1, a2, mouse_x - width // 2, (mouse_y - height // 2))
-        
-        if theta1 <= 0 :
-            # Calculate positions of points
-            x1 = a1 * math.cos(math.radians(theta1)) + width // 2
-            y1 = a1 * math.sin(math.radians(theta1)) + height // 2
-            x2 = x1 + a2 * math.cos(math.radians(theta1) + math.radians(theta2))
-            y2 = y1 + a2 * math.sin(math.radians(theta1) + math.radians(theta2))
-            
-        elif theta1 > 0:
-            theta1 =  theta1 * -1
-            theta2 = inverse_kinematics_N1(a1, theta1, mouse_x - width // 2, mouse_y - height // 2)
-            x1 = a1 * math.cos(math.radians(theta1)) + width // 2
-            y1 = a1 * math.sin(math.radians(theta1)) + height // 2
-            x2 = x1 + a2 * math.cos(math.radians(theta2)) 
-            y2 = y1 + a2 * math.sin(math.radians(theta2)) 
-        
+        if self.ik_solver == inverse_kinematics_two_link_geometric:
+            # Geometric solver returns ((sol1_t1, sol1_t2), (sol2_t1, sol2_t2))
+            # We'll use the first solution, provided it's not None
+            if angles and angles[0][0] is not None:
+                 self.theta1, self.theta2 = angles[0]
+            else:
+                 # Handle unreachable target or solver failure
+                 # Angles were not updated, arm stays in last valid position
+                 pass # Optionally print a warning here, but IK solver already does for unreachable
+        else: # fsolve
+             # fsolve returns (theta1, theta2) or (None, None)
+             if angles is not None and angles[0] is not None:
+                 self.theta1, self.theta2 = angles
+             else:
+                 # Handle solver failure
+                 # Angles were not updated, arm stays in last valid position
+                 pass # Optionally print a warning here, but IK solver already does for convergence issues
 
 
-    screen.fill(white)
+        # Update joint positions based on the current angles (Forward Kinematics)
+        self._update_joint_positions()
 
-    # Draw links and joints
-    pygame.draw.line(screen, black, (width // 2, height // 2), (x1, y1), 5)
-    pygame.draw.line(screen, black, (x1, y1), (x2, y2), 5)
-    pygame.draw.circle(screen, blue, (width // 2, height // 2), 8)
-    pygame.draw.circle(screen, black, (int(x1), int(y1)), 8)
-    pygame.draw.circle(screen, red, (int(x2), int(y2)), 8)
 
-    # Display text on screen
-    text_x = font.render(f"x: {mouse_x - width // 2}", True, black)
-    text_y = font.render(f"y: {mouse_y - height // 2}", True, black)
-    text_theta1 = font.render(f"Theta1: {(theta1):.2f} degrees", True, black)
-    text_theta2 = font.render(f"Theta2: {(theta2):.2f} degrees", True, black)
+    def _update_joint_positions(self):
+        """
+        Calculates the Pygame window coordinates of the joints based on current angles.
+        (Forward Kinematics)
+        """
+        theta1_rad = np.radians(self.theta1)
+        theta2_rad = np.radians(self.theta2)
 
-    screen.blit(text_x, (10, 50))
-    screen.blit(text_y, (10, 70))
-    screen.blit(text_theta1, (10, 10))
-    screen.blit(text_theta2, (10, 30))
+        # Calculate position of joint 1 (end of link 1) relative to origin
+        j1_x_rel = self.a1 * np.cos(theta1_rad)
+        j1_y_rel = self.a1 * np.sin(theta1_rad)
 
-    pygame.display.flip()
+        # Calculate position of joint 2 (end of link 2) relative to joint 1
+        j2_x_rel = j1_x_rel + self.a2 * np.cos(theta1_rad + theta2_rad)
+        j2_y_rel = j1_y_rel + self.a2 * np.sin(theta1_rad + theta2_rad)
 
-pygame.quit()
-sys.exit()
+        # Convert relative positions to Pygame window coordinates
+        self.xy1[0] = j1_x_rel + self.origin_x
+        self.xy1[1] = j1_y_rel + self.origin_y
+
+        self.xy2[0] = j2_x_rel + self.origin_x
+        self.xy2[1] = j2_y_rel + self.origin_y
+
+
+    def draw_arm(self):
+        """
+        Draws the two-link arm and relevant information on the screen.
+        """
+        # Draw links
+        pygame.draw.line(self.screen, self.black, (self.origin_x, self.origin_y), (self.xy1[0], self.xy1[1]), 5)
+        pygame.draw.line(self.screen, self.black, (self.xy1[0], self.xy1[1]), (self.xy2[0], self.xy2[1]), 5)
+
+        # Draw joints and end-effector
+        # Base is drawn by BaseArm
+        pygame.draw.circle(self.screen, self.black, (int(self.xy1[0]), int(self.xy1[1])), 8) # Joint 1
+        pygame.draw.circle(self.screen, self.red, (int(self.xy2[0]), int(self.xy2[1])), 8)   # End-effector
+
+        # Draw the target destination (optional, but helps visualize mouse target)
+        # pygame.draw.circle(self.screen, self.blue, (int(self.target_x), int(self.target_y)), 8) # Target
+
+        # Display text (coordinates relative to origin and angles)
+        text_target_x = self.font.render(f"Target x: {self.target_x - self.origin_x}", True, self.black)
+        text_target_y = self.font.render(f"Target y: {self.target_y - self.origin_y}", True, self.black)
+        text_current_x = self.font.render(f"Current x: {self.xy2[0] - self.origin_x:.2f}", True, self.black)
+        text_current_y = self.font.render(f"Current y: {self.xy2[1] - self.origin_y:.2f}", True, self.black)
+        text_theta1 = self.font.render(f"Theta1: {self.theta1:.2f} degrees", True, self.black)
+        text_theta2 = self.font.render(f"Theta2: {self.theta2:.2f} degrees", True, self.black)
+
+
+        self.screen.blit(text_target_x, (10, 100))
+        self.screen.blit(text_target_y, (10, 120))
+        self.screen.blit(text_current_x, (10, 140))
+        self.screen.blit(text_current_y, (10, 160))
+        self.screen.blit(text_theta1, (10, 10))
+        self.screen.blit(text_theta2, (10, 30))
+
+
+# Example Usage (for direct running of this specific arm)
+if __name__ == "__main__":
+    # Create an instance of the two-link mouse-following arm
+    # Choose solver: 'fsolve' or 'geometric'
+    arm_instance = TwoLinkMouseFollowArm(100, 100, solver='fsolve') # Set your desired link lengths here
+    # Run the simulation loop from the BaseArm class
+    arm_instance.run()
